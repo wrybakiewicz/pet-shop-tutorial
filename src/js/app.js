@@ -23,18 +23,31 @@ App = {
     return await App.initWeb3();
   },
 
-  initWeb3: async function() {
-    /*
-     * Replace me...
-     */
-
-    return App.initContract();
-  },
+    initWeb3: async function () {
+        if (window.ethereum) {
+            App.web3Provider = window.ethereum;
+            try {
+                await window.ethereum.request({method: "eth_requestAccounts"});
+            } catch (error) {
+                console.error("User denied account access");
+            }
+        } else if (window.web3) {
+            App.web3Provider = window.web3.currentProvider;
+        } else {
+            App.web3Provider = new Web3.providers.HttpProvider("http://localhost:7545");
+        }
+        return App.initContract();
+    },
 
   initContract: function() {
-    /*
-     * Replace me...
-     */
+    $.getJSON("Adoption.json", function(data) {
+      var AdoptionArtifact = data;
+      App.contracts.Adoption = TruffleContract(AdoptionArtifact);
+
+      App.contracts.Adoption.setProvider(App.web3Provider);
+
+      return App.markAdopted();
+    });
 
     return App.bindEvents();
   },
@@ -44,20 +57,39 @@ App = {
   },
 
   markAdopted: function() {
-    /*
-     * Replace me...
-     */
+    var adoptionInstance;
+
+      App.contracts.Adoption.deployed().then(function (instance) {
+          adoptionInstance = instance;
+          return adoptionInstance.getAdopters.call();
+      }).then(function (adopters) {
+              for (i = 0; i < adopters.length; i++) {
+                  if (adopters[i] !== '0x0000000000000000000000000000000000000000') {
+                      $(".panel-pet").eq(i).find('button').text("Success").attr("disabled", true);
+                  }
+              }
+          }
+      );
   },
 
-  handleAdopt: function(event) {
-    event.preventDefault();
+    handleAdopt: function (event) {
+        event.preventDefault();
 
-    var petId = parseInt($(event.target).data('id'));
+        var petId = parseInt($(event.target).data('id'));
 
-    /*
-     * Replace me...
-     */
-  }
+        var adoptionInstance;
+
+        App.web3Provider.request({method: 'eth_accounts'}).then(function (accounts) {
+            App.contracts.Adoption.deployed().then(function (instance) {
+                adoptionInstance = instance;
+                return adoptionInstance.adopt(petId, {from: accounts[0]});
+            }).then(function (result) {
+                return App.markAdopted();
+            }).catch(function (error) {
+                console.log(error.message);
+            });
+        });
+    }
 
 };
 
